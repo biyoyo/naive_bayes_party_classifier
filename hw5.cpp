@@ -97,6 +97,64 @@ public:
 
 private:
     vector<Record> data;
+    vector<VoteStatistic> likelihoods;
+    int dem_count;
+    int rep_count;
+
+    pair<int, int> count(int col)
+    {
+        int a = 0, b = 0;
+        for (auto rec : data)
+        {
+            if (rec.data[col] == 0)
+            {
+                a++;
+            }
+            else if (rec.data[col] == 1)
+            {
+                b++;
+            }
+        }
+        return make_pair(a, b);
+    }
+
+    pair<int, int> count_class()
+    {
+        int a = 0, b = 0;
+        for (auto rec : data)
+        {
+            if (rec.party == 0)
+            {
+                a++;
+            }
+            else if (rec.party == 1)
+            {
+                b++;
+            }
+        }
+        return make_pair(a, b);
+    }
+
+    pair<int, int> count_votes_in_party(int col, int party)
+    {
+        int a = 0, b = 0;
+
+        for (auto rec : data)
+        {
+            if (rec.party == party)
+            {
+                if (rec.data[col] == 0)
+                {
+                    a++;
+                }
+                else if (rec.data[col] == 1)
+                {
+                    b++;
+                }
+            }
+        }
+        return make_pair(a, b);
+    }
 };
 
 int main()
