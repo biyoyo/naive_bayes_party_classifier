@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <cmath>
+#include <random>
 
 #define loop for (;;)
 
@@ -176,6 +177,41 @@ public:
         return rep_prob > dem_prob ? 0 : 1;
     }
 
+    void generate_random_subsets()
+    {
+        vector<vector<int>> subsets(10);
+
+        random_device rd;
+        mt19937 gen(rd());
+        uniform_int_distribution<> distro(0, data.size() - 1);
+        uniform_int_distribution<> set_size(35, 45);
+        vector<bool> visited(data.size(), false);
+
+        for(int i = 0; i < 9; i++)
+        {
+            //generate one random set
+            int subset_size = set_size(gen);
+            for(int j = 0; j < subset_size; j++)
+            {
+                int index = distro(gen);
+                while(visited[index] != false)
+                {
+                    index = distro(gen);
+                }
+                subsets[i].push_back(index);
+                visited[index] = true;
+            }
+        }
+
+        for(int i = 0; i < data.size(); i++)
+        {
+            if(visited[i] == false)
+            {
+                subsets[9].push_back(i);
+            }
+        }
+    }
+
 private:
     vector<Record> data;
     vector<VoteStatistic> likelihoods;
@@ -225,7 +261,8 @@ int main()
 {
     Classifier cl;
     int index;
-    cin >> index;
-    cout << cl.classify(index) << endl;
+    //cin >> index;
+    //cout << cl.classify(index) << endl;
+    cl.generate_random_subsets();
     return 0;
 }
