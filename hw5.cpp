@@ -15,6 +15,7 @@ enum Vote
     Nay,
     Unknown
 };
+
 enum Party
 {
     Republican,
@@ -136,7 +137,6 @@ public:
 
     int classify(int record_index)
     {
-        //prob for rep
         double rep_prob = 0;
 
         for (int i = 0; i < 16; i++)
@@ -155,7 +155,6 @@ public:
 
         rep_prob += log(double(rep_count) / (rep_count + dem_count));
 
-        //prob for dem
         double dem_prob = 0;
 
         for (int i = 0; i < 16; i++)
@@ -174,8 +173,6 @@ public:
 
         dem_prob += log(double(dem_count) / (rep_count + dem_count));
 
-        cout << "rep: " << rep_prob << endl;
-        cout << "dem: "<< dem_prob << endl;
         return rep_prob > dem_prob ? 0 : 1;
     }
 
@@ -184,23 +181,6 @@ private:
     vector<VoteStatistic> likelihoods;
     int dem_count;
     int rep_count;
-
-    pair<int, int> count(int col)
-    {
-        int a = 0, b = 0;
-        for (auto rec : data)
-        {
-            if (rec.data[col] == 0)
-            {
-                a++;
-            }
-            else if (rec.data[col] == 1)
-            {
-                b++;
-            }
-        }
-        return make_pair(a, b);
-    }
 
     pair<int, int> count_class()
     {
@@ -244,6 +224,8 @@ private:
 int main()
 {
     Classifier cl;
-    cl.classify(25);
+    int index;
+    cin >> index;
+    cout << cl.classify(index) << endl;
     return 0;
 }
