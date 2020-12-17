@@ -3,6 +3,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <cmath>
 
 #define loop for (;;)
 
@@ -29,6 +30,15 @@ struct Record
 class Classifier
 {
 public:
+    Classifier()
+    {
+        read_file();
+        pair<int, int> count = count_class();
+        rep_count = count.first;
+        dem_count = count.second;
+        calculate_likelihoods();
+    }
+
     void read_file()
     {
         ifstream file("house-votes-84.data");
@@ -43,7 +53,7 @@ public:
             string input;
             file >> input;
 
-            if(file.eof())
+            if (file.eof())
             {
                 break;
             }
@@ -60,7 +70,7 @@ public:
 
             getline(line, word, ',');
 
-            if(word == "republican")
+            if (word == "republican")
             {
                 rec.party = Republican;
             }
@@ -68,19 +78,19 @@ public:
             {
                 rec.party = Democrat;
             }
-            
-            while(getline(line, word, ','))
+
+            while (getline(line, word, ','))
             {
                 Vote v;
-                if(word == "y")
+                if (word == "y")
                 {
                     v = Yea;
                 }
-                else if(word == "n")
+                else if (word == "n")
                 {
                     v = Nay;
                 }
-                else if(word == "?")
+                else if (word == "?")
                 {
                     v = Unknown;
                 }
@@ -88,11 +98,85 @@ public:
                 {
                     cout << "Error reading file" << endl;
                 }
-                
+
                 rec.data.push_back(v);
             }
             data.push_back(rec);
         }
+    }
+
+    struct VoteStatistic
+    {
+        float ry;
+        float rn;
+        float dy;
+        float dn;
+    };
+
+    void calculate_likelihoods()
+    {
+        pair<int, int> cl = count_class();
+        int reps = cl.first;
+        int dems = cl.second;
+
+        for (int col = 0; col < 16; col++) //todo
+        {
+            pair<int, int> p0 = count_votes_in_party(col, 0);
+            pair<int, int> p1 = count_votes_in_party(col, 1);
+
+            VoteStatistic vs;
+            vs.ry = double(p0.first) / rep_count;
+            vs.rn = double(p0.second) / rep_count;
+            vs.dy = double(p1.first) / dem_count;
+            vs.dn = double(p1.second) / dem_count;
+
+            likelihoods.push_back(vs);
+        }
+    }
+
+    int classify(int record_index)
+    {
+        //prob for rep
+        double rep_prob = 0;
+
+        for (int i = 0; i < 16; i++)
+        {
+            double likelihood;
+            if (data[record_index].data[i] == 0)
+            {
+                likelihood = likelihoods[i].ry;
+            }
+            else if (data[record_index].data[i] == 1)
+            {
+                likelihood = likelihoods[i].rn;
+            }
+            rep_prob += log(likelihood);
+        }
+
+        rep_prob += log(double(rep_count) / (rep_count + dem_count));
+
+        //prob for dem
+        double dem_prob = 0;
+
+        for (int i = 0; i < 16; i++)
+        {
+            double likelihood;
+            if (data[record_index].data[i] == 0)
+            {
+                likelihood = likelihoods[i].dy;
+            }
+            else if (data[record_index].data[i] == 1)
+            {
+                likelihood = likelihoods[i].dn;
+            }
+            dem_prob += log(likelihood);
+        }
+
+        dem_prob += log(double(dem_count) / (rep_count + dem_count));
+
+        cout << "rep: " << rep_prob << endl;
+        cout << "dem: "<< dem_prob << endl;
+        return rep_prob > dem_prob ? 0 : 1;
     }
 
 private:
@@ -160,6 +244,6 @@ private:
 int main()
 {
     Classifier cl;
-    cl.read_file();
+    cl.classify(25);
     return 0;
 }
