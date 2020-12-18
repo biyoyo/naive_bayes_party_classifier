@@ -33,12 +33,9 @@ class Classifier
 {
 public:
     Classifier()
+        : attributes_count(16)
     {
         read_file();
-        pair<int, int> count = count_class();
-        rep_count = count.first;
-        dem_count = count.second;
-        calculate_likelihoods();
     }
 
     void read_file()
@@ -105,6 +102,7 @@ public:
             }
             data.push_back(rec);
         }
+        file.close();
     }
 
     struct VoteStatistic
@@ -115,16 +113,12 @@ public:
         float dn;
     };
 
-    void calculate_likelihoods()
+    void calculate_likelihoods(int subset_to_ignore)
     {
-        pair<int, int> cl = count_class();
-        int reps = cl.first;
-        int dems = cl.second;
-
-        for (int col = 0; col < 16; col++) //todo
+        for (int col = 0; col < attributes_count; col++)
         {
-            pair<int, int> p0 = count_votes_in_party(col, 0);
-            pair<int, int> p1 = count_votes_in_party(col, 1);
+            pair<int, int> p0 = count_votes_in_party(col, 0, subset_to_ignore);
+            pair<int, int> p1 = count_votes_in_party(col, 1, subset_to_ignore);
 
             VoteStatistic vs;
             vs.ry = double(p0.first) / rep_count;
@@ -140,7 +134,7 @@ public:
     {
         double rep_prob = 0;
 
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < attributes_count; i++)
         {
             double likelihood;
             if (data[record_index].data[i] == 0)
@@ -158,7 +152,7 @@ public:
 
         double dem_prob = 0;
 
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < attributes_count; i++)
         {
             double likelihood;
             if (data[record_index].data[i] == 0)
@@ -179,7 +173,7 @@ public:
 
     void generate_random_subsets()
     {
-        vector<vector<int>> subsets(10);
+        subsets.resize(10);
 
         random_device rd;
         mt19937 gen(rd());
@@ -187,14 +181,14 @@ public:
         uniform_int_distribution<> set_size(35, 45);
         vector<bool> visited(data.size(), false);
 
-        for(int i = 0; i < 9; i++)
+        for (int i = 0; i < 9; i++)
         {
             //generate one random set
             int subset_size = set_size(gen);
-            for(int j = 0; j < subset_size; j++)
+            for (int j = 0; j < subset_size; j++)
             {
                 int index = distro(gen);
-                while(visited[index] != false)
+                while (visited[index] != false)
                 {
                     index = distro(gen);
                 }
@@ -203,66 +197,112 @@ public:
             }
         }
 
-        for(int i = 0; i < data.size(); i++)
+        for (int i = 0; i < data.size(); i++)
         {
-            if(visited[i] == false)
+            if (visited[i] == false)
             {
                 subsets[9].push_back(i);
             }
         }
     }
 
+    void train_and_test()
+    {
+        generate_random_subsets();
+
+        ofstream test_data("test_data.txt", ios::trunc);
+        double average = 0;
+
+        //one train cycle out of 10
+        for (int subset = 0; subset < subsets.size(); subset++)
+        {
+            pair<int, int> parties_count = count_class(subset);
+            rep_count = parties_count.first;
+            dem_count = parties_count.second;
+
+            calculate_likelihoods(subset);
+
+            double success_rate = test_with_one_subset(subset);
+
+            average += success_rate;
+
+            if(!test_data)
+            {
+                cout << "Error opening output file" << endl;
+            }
+
+            test_data << success_rate << ", ";
+
+            likelihoods.clear();
+        }
+        test_data << average / subsets.size();
+        test_data.close();
+    }
+
+    double test_with_one_subset(int subset)
+    {
+        int test_subjects = subsets[subset].size();
+        int successes = 0;
+        for(int i = 0; i < test_subjects; i++)
+        {
+            int result = classify(subsets[subset][i]);
+            successes += result == data[i].party ? 1 : 0;
+        }
+
+        return double(successes) / test_subjects;
+    }
+
 private:
     vector<Record> data;
     vector<VoteStatistic> likelihoods;
-    int dem_count;
     int rep_count;
+    int dem_count;
+    int attributes_count;
 
-    pair<int, int> count_class()
+    vector<vector<int>> subsets;
+
+    pair<int, int> count_class(int subset_to_ignore)
     {
-        int a = 0, b = 0;
-        for (auto rec : data)
+        int reps = 0, dems = 0;
+        for (int i = 0; i < subsets.size(); i++)
         {
-            if (rec.party == 0)
+            if (i != subset_to_ignore)
             {
-                a++;
-            }
-            else if (rec.party == 1)
-            {
-                b++;
+                for (int j : subsets[i])
+                {
+                    reps += data[j].party == Republican ? 1 : 0;
+                    dems += data[j].party == Democrat ? 1 : 0;
+                }
             }
         }
-        return make_pair(a, b);
+        return make_pair(reps, dems);
     }
 
-    pair<int, int> count_votes_in_party(int col, int party)
+    pair<int, int> count_votes_in_party(int col, int party, int subset_to_ignore)
     {
-        int a = 0, b = 0;
+        int yeas = 0, nays = 0;
 
-        for (auto rec : data)
+        for (int i = 0; i < subsets.size(); i++)
         {
-            if (rec.party == party)
+            if (i != subset_to_ignore)
             {
-                if (rec.data[col] == 0)
+                for (int j : subsets[i])
                 {
-                    a++;
-                }
-                else if (rec.data[col] == 1)
-                {
-                    b++;
+                    if (data[j].party == party)
+                    {
+                        yeas += data[j].data[col] == Yea ? 1 : 0;
+                        nays += data[j].data[col] == Nay ? 1 : 0;
+                    }
                 }
             }
         }
-        return make_pair(a, b);
+        return make_pair(yeas, nays);
     }
 };
 
 int main()
 {
     Classifier cl;
-    int index;
-    //cin >> index;
-    //cout << cl.classify(index) << endl;
-    cl.generate_random_subsets();
+    cl.train_and_test();
     return 0;
 }
