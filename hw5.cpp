@@ -115,6 +115,7 @@ public:
 
     void calculate_likelihoods(int subset_to_ignore)
     {
+        likelihoods.clear();
         for (int col = 0; col < attributes_count; col++)
         {
             pair<int, int> p0 = count_votes_in_party(col, 0, subset_to_ignore);
@@ -125,50 +126,51 @@ public:
             vs.rn = double(p0.second) / rep_count;
             vs.dy = double(p1.first) / dem_count;
             vs.dn = double(p1.second) / dem_count;
+            //cout << "attr " << col << " : " << p0.first << ' ' << p1.first << endl;
 
             likelihoods.push_back(vs);
         }
     }
 
-    int classify(int record_index)
+    Party classify(int record_index)
     {
-        double rep_prob = 0;
+        //double rep_prob = log(double(rep_count) / (rep_count + dem_count));
+        double rep_prob = double(rep_count) / (rep_count + dem_count);
 
         for (int i = 0; i < attributes_count; i++)
         {
             double likelihood;
-            if (data[record_index].data[i] == 0)
+            if (data[record_index].data[i] == Vote::Yea)
             {
                 likelihood = likelihoods[i].ry;
             }
-            else if (data[record_index].data[i] == 1)
+            else if (data[record_index].data[i] == Vote::Nay)
             {
                 likelihood = likelihoods[i].rn;
             }
-            rep_prob += log(likelihood);
+            //rep_prob += log(likelihood);
+            rep_prob *= likelihood;
         }
 
-        rep_prob += log(double(rep_count) / (rep_count + dem_count));
-
-        double dem_prob = 0;
+        //double dem_prob = log(double(dem_count) / (rep_count + dem_count));
+        double dem_prob = double(dem_count) / (rep_count + dem_count);
 
         for (int i = 0; i < attributes_count; i++)
         {
             double likelihood;
-            if (data[record_index].data[i] == 0)
+            if (data[record_index].data[i] == Vote::Yea)
             {
                 likelihood = likelihoods[i].dy;
             }
-            else if (data[record_index].data[i] == 1)
+            else if (data[record_index].data[i] == Vote::Nay)
             {
                 likelihood = likelihoods[i].dn;
             }
-            dem_prob += log(likelihood);
+            //dem_prob += log(likelihood);
+            dem_prob *= likelihood;
         }
 
-        dem_prob += log(double(dem_count) / (rep_count + dem_count));
-
-        return rep_prob > dem_prob ? 0 : 1;
+        return rep_prob > dem_prob ? Party::Republican : Party::Democrat;
     }
 
     void generate_random_subsets()
@@ -178,13 +180,12 @@ public:
         random_device rd;
         mt19937 gen(rd());
         uniform_int_distribution<> distro(0, data.size() - 1);
-        uniform_int_distribution<> set_size(35, 45);
+        const int subset_size = data.size() / 10;
         vector<bool> visited(data.size(), false);
 
         for (int i = 0; i < 9; i++)
         {
             //generate one random set
-            int subset_size = set_size(gen);
             for (int j = 0; j < subset_size; j++)
             {
                 int index = distro(gen);
@@ -219,10 +220,14 @@ public:
             pair<int, int> parties_count = count_class(subset);
             rep_count = parties_count.first;
             dem_count = parties_count.second;
+            cout << rep_count << ' ' << dem_count << endl;
+
+            cout << "Subset size: " << subsets[subset].size() << endl;
 
             calculate_likelihoods(subset);
 
             double success_rate = test_with_one_subset(subset);
+            cout << "Succ: " << success_rate << endl;
 
             average += success_rate;
 
@@ -232,8 +237,6 @@ public:
             }
 
             test_data << success_rate << ", ";
-
-            likelihoods.clear();
         }
         test_data << average / subsets.size();
         test_data.close();
@@ -241,15 +244,15 @@ public:
 
     double test_with_one_subset(int subset)
     {
-        int test_subjects = subsets[subset].size();
+        const auto &indices = subsets[subset];
         int successes = 0;
-        for(int i = 0; i < test_subjects; i++)
+        for(int id : indices)
         {
-            int result = classify(subsets[subset][i]);
-            successes += result == data[i].party ? 1 : 0;
+            int result = classify(id);
+            successes += result == data[id].party;
         }
 
-        return double(successes) / test_subjects;
+        return double(successes) / indices.size();
     }
 
 private:
